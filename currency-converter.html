@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Currency Converter</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Use Inter as the default font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Light grey background to see the card */
+        }
+        /* Custom focus styles for better accessibility and design */
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #4285F4; /* Google's blue */
+            box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.4);
+        }
+        /* Style for the results list, now with a pointer cursor */
+        .results-list-item {
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        }
+        .results-list-item:hover {
+            background-color: #f8f9fa; /* Light grey on hover */
+            border-color: #e0e0e0;
+        }
+        /* Updated style for rectangular, high-quality flags */
+        .flag-icon {
+            width: 50px;
+            height: 33px;
+            object-fit: cover;
+            border-radius: 4px; /* Slightly rounded corners */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #eee;
+        }
+        /* Hide scrollbar */
+        #results-container::-webkit-scrollbar {
+            display: none; /* For Chrome, Safari, and Opera */
+        }
+        #results-container {
+            -ms-overflow-style: none;  /* For Internet Explorer and Edge */
+            scrollbar-width: none;  /* For Firefox */
+        }
+    </style>
+</head>
+<body class="bg-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-lg mx-auto bg-white rounded-xl p-6 md:p-8">
+        
+        <!-- Header -->
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Currency Converter</h1>
+            <p class="text-gray-500 mt-2">Fast and simple currency conversion.</p>
+        </header>
+
+        <!-- Converter Form -->
+        <div class="space-y-4 mb-6">
+            <!-- Grid container for amount and from sections -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <!-- Amount Section -->
+                <div class="md:col-span-2">
+                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                    <input type="number" id="amount" value="1" class="form-input w-full p-3 border border-gray-300 rounded-lg text-lg text-gray-900 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <!-- From Section -->
+                <div>
+                    <label for="from-currency" class="block text-sm font-medium text-gray-700 mb-1">From</label>
+                    <div class="flex items-center space-x-2">
+                        <img id="from-flag" class="flag-icon" src="" alt="Flag">
+                        <select id="from-currency" class="flex-1 form-select w-full p-3 border border-gray-300 rounded-lg text-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500">
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Last Updated Status -->
+        <div id="status" class="text-center text-xs text-gray-400 mb-4">
+            Fetching latest rates...
+        </div>
+
+        <!-- Results Display -->
+        <div id="results-container" class="space-y-2 max-h-[60vh] overflow-y-auto">
+            <!-- Results will be populated here -->
+        </div>
+
+    </div>
+
+    <script>
+        const amountInput = document.getElementById('amount');
+        const fromCurrencySelect = document.getElementById('from-currency');
+        const fromFlagImg = document.getElementById('from-flag');
+        const resultsContainer = document.getElementById('results-container');
+        const statusEl = document.getElementById('status');
+
+        // This object holds static info like names and flags.
+        const currencyInfo = {
+            'USD': { name: 'US Dollar', flag: 'https://flagcdn.com/w80/us.png' },
+            'GBP': { name: 'British Pound', flag: 'https://flagcdn.com/w80/gb.png' },
+            'EUR': { name: 'Euro', flag: 'https://flagcdn.com/w80/eu.png' },
+            'MAD': { name: 'Moroccan Dirham', flag: 'https://flagcdn.com/w80/ma.png' },
+            'EGP': { name: 'Egyptian Pound', flag: 'https://flagcdn.com/w80/eg.png' },
+            'SYP': { name: 'Syrian Pound', flag: 'https://flagcdn.com/w80/sy.png' },
+            'JOD': { name: 'Jordanian Dinar', flag: 'https://flagcdn.com/w80/jo.png' },
+            'AED': { name: 'Emirati Dirham', flag: 'https://flagcdn.com/w80/ae.png' },
+            'QAR': { name: 'Qatari Riyal', flag: 'https://flagcdn.com/w80/qa.png' },
+            'SAR': { name: 'Saudi Riyal', flag: 'https://flagcdn.com/w80/sa.png' },
+            'KWD': { name: 'Kuwaiti Dinar', flag: 'https://flagcdn.com/w80/kw.png' },
+            'BHD': { name: 'Bahraini Dinar', flag: 'https://flagcdn.com/w80/bh.png' },
+            'INR': { name: 'Indian Rupee', flag: 'https://flagcdn.com/w80/in.png' },
+            'CNY': { name: 'Chinese Yuan', flag: 'https://flagcdn.com/w80/cn.png' },
+            'JPY': { name: 'Japanese Yen', flag: 'https://flagcdn.com/w80/jp.png' },
+        };
+        
+        let liveRates = {};
+
+        async function fetchLiveRates() {
+            try {
+                const response = await fetch('https://open.er-api.com/v6/latest/USD');
+                const data = await response.json();
+                if (data && data.rates) {
+                    liveRates = data.rates;
+                    const updateTime = new Date(data.time_last_update_unix * 1000);
+                    statusEl.textContent = `Last updated: ${updateTime.toLocaleString('en-GB')}`;
+                } else {
+                    statusEl.textContent = 'Could not fetch live rates. Using fallback data.';
+                }
+            } catch (error) {
+                console.error('Error fetching live rates:', error);
+                statusEl.textContent = 'Failed to load live rates. Displaying saved data.';
+            } finally {
+                calculateAndDisplay();
+            }
+        }
+
+        function populateFromCurrency() {
+            const currencyCodes = Object.keys(currencyInfo);
+            currencyCodes.forEach(code => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = `${code} - ${currencyInfo[code].name}`;
+                fromCurrencySelect.appendChild(option);
+            });
+            fromCurrencySelect.value = 'USD';
+            updateFromFlag();
+        }
+        
+        function updateFromFlag() {
+            const fromCurrency = fromCurrencySelect.value;
+            fromFlagImg.src = currencyInfo[fromCurrency].flag;
+            fromFlagImg.alt = `Flag of ${currencyInfo[fromCurrency].name}`;
+        }
+
+        // Renamed function to better reflect its purpose
+        function calculateAndDisplay() {
+            const fromCurrency = fromCurrencySelect.value;
+            const amount = parseFloat(amountInput.value);
+            const isAmountValid = !isNaN(amount) && amount >= 0;
+            const fromRate = liveRates[fromCurrency] || 1;
+
+            resultsContainer.innerHTML = ''; // Clear previous results
+
+            Object.keys(currencyInfo).forEach(toCurrency => {
+                if (toCurrency === fromCurrency) return;
+
+                const toRate = liveRates[toCurrency];
+                let displayValue = '---'; // Default value if amount is invalid
+
+                // Only calculate if the amount is valid and the rate exists
+                if (isAmountValid && toRate) {
+                    const convertedAmount = (amount / fromRate) * toRate;
+                    displayValue = convertedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+                }
+                
+                // Always create and display the item, with either a value or placeholder
+                const resultItem = createResultItem(toCurrency, displayValue);
+                resultsContainer.appendChild(resultItem);
+            });
+        }
+        
+        function createResultItem(toCurrency, displayValue) {
+            const info = currencyInfo[toCurrency];
+            const resultItem = document.createElement('div');
+            resultItem.className = 'results-list-item grid grid-cols-2 gap-4 items-center p-3 rounded-lg';
+            
+            resultItem.innerHTML = `
+                <div class="flex items-center">
+                    <img src="${info.flag}" alt="${info.name}" class="flag-icon mr-4 flex-shrink-0">
+                    <div>
+                        <p class="font-semibold text-gray-800">${toCurrency}</p>
+                        <p class="text-sm text-gray-500">${info.name}</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="font-bold text-lg text-gray-900" style="word-wrap: break-word;">${displayValue}</p>
+                </div>
+            `;
+            
+            resultItem.addEventListener('click', () => {
+                fromCurrencySelect.value = toCurrency;
+                updateFromFlag();
+                calculateAndDisplay();
+                resultsContainer.scrollTop = 0;
+            });
+
+            return resultItem;
+        }
+
+        // Event Listeners
+        amountInput.addEventListener('input', calculateAndDisplay);
+        fromCurrencySelect.addEventListener('change', () => {
+            updateFromFlag();
+            calculateAndDisplay();
+        });
+        
+        // Initial setup on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            populateFromCurrency();
+            fetchLiveRates(); 
+        });
+
+    </script>
+</body>
+</html>
+
